@@ -1,3 +1,4 @@
+import LogoutButton from "@/components/LogoutButton";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -54,11 +55,15 @@ export default async function DashboardPage() {
             </h1>
           </div>
 
-          <div className="text-sm text-gray-600">
-            <span className="font-semibold text-gray-800">
-              {usuarioApp?.nombre}
-            </span>{" "}
-            · {usuarioApp?.rol === "admin" ? "Administrador" : "Familiar"}
+          <div className="flex flex-col gap-3 text-sm text-gray-600 sm:flex-row sm:items-center">
+            <div>
+              <span className="font-semibold text-gray-800">
+                {usuarioApp?.nombre}
+              </span>{" "}
+              · {usuarioApp?.rol === "admin" ? "Administrador" : "Familiar"}
+            </div>
+
+            <LogoutButton />
           </div>
         </div>
       </div>
