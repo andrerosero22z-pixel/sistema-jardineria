@@ -484,15 +484,15 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
             <label className="label">Costo unitario por unidad*</label>
             <input
               required
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+             
               value={fila.costo_unitario}
               onChange={(e) =>
                 actualizarProducto(
                   fila.fila_id,
                   "costo_unitario",
-                  e.target.value
+                  e.target.value.replace(",", ".")
                 )
               }
               placeholder="Ej: 2"
