@@ -468,9 +468,9 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
                     inputMode="decimal"
                     value={fila.cantidad}
                     onChange={(e) =>
-                      actualizarServicio(
+                      actualizarProducto(
                         fila.fila_id,
-                        "precio_servicio",
+                        "cantidad",
                         e.target.value.replace(",", ".")
                       )
                     }
@@ -481,7 +481,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
           </div>
 
           <div>
-            <label className="label">Costo unitario *</label>
+            <label className="label">Costo unitario por unidad*</label>
             <input
               required
               type="number"
@@ -501,7 +501,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
           </div>
 
           <div>
-            <label className="label">Precio cobrado *</label>
+            <label className="label">Precio cobrado por unidad*</label>
 
             <input
                 required
@@ -509,9 +509,9 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
                 inputMode="decimal"
                 value={fila.precio_venta_unitario}
                 onChange={(e) =>
-                  actualizarServicio(
+                  actualizarProducto(
                     fila.fila_id,
-                    "precio_servicio",
+                    "precio_venta_unitario",
                     e.target.value.replace(",", ".")
                   )
                 }
