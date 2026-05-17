@@ -65,6 +65,17 @@ function hoy() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function limpiarNumero(valor: string) {
+  const limpio = valor.replace(",", ".").replace(/[^0-9.]/g, "");
+  const partes = limpio.split(".");
+
+  if (partes.length <= 2) {
+    return limpio;
+  }
+
+  return `${partes[0]}.${partes.slice(1).join("")}`;
+}
+
 export default function TrabajoForm({
   clientes,
   servicios,
@@ -340,7 +351,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
                         actualizarServicio(
                           fila.fila_id,
                           "precio_servicio",
-                          e.target.value.replace(",", ".")
+                          limpiarNumero(e.target.value)
                         )
                       }
                       placeholder="Ej: 20"
@@ -471,7 +482,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
                       actualizarProducto(
                         fila.fila_id,
                         "cantidad",
-                        e.target.value.replace(",", ".")
+                        limpiarNumero(e.target.value)
                       )
                     }
                     placeholder="Ej: 5"
@@ -492,7 +503,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
                 actualizarProducto(
                   fila.fila_id,
                   "costo_unitario",
-                  e.target.value.replace(",", ".")
+                  limpiarNumero(e.target.value)
                 )
               }
               placeholder="Ej: 2"
@@ -512,7 +523,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
                   actualizarProducto(
                     fila.fila_id,
                     "precio_venta_unitario",
-                    e.target.value.replace(",", ".")
+                    limpiarNumero(e.target.value)
                   )
                 }
                 placeholder="Ej: 20"

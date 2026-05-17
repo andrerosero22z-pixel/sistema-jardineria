@@ -70,10 +70,10 @@ export default async function NuevoTrabajoPage({ searchParams }: PageProps) {
         ) : null}
 
         {params.error ? (
-          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 font-bold text-red-700">
-            No se pudo guardar el trabajo. Revisa los campos e intenta otra vez.
-          </div>
-        ) : null}
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 font-bold text-red-700">
+              No se pudo guardar el trabajo. Error: {params.error}
+            </div>
+          ) : null}
 
         <div className="card mt-5 overflow-hidden">
           <div className="card-dark p-7">
