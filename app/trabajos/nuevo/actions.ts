@@ -114,7 +114,7 @@ const mensajeRecordatorio = String(
       (servicio) =>
         servicio.id_servicio &&
         !Number.isNaN(servicio.precio_servicio) &&
-        servicio.precio_servicio > 0
+        servicio.precio_servicio >= 0
     );
 
   const productosValidos = productos
