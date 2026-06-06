@@ -331,6 +331,8 @@ if (recordatorioOpcion !== "none") {
 
   revalidatePath("/dashboard");
   revalidatePath("/clientes");
+  revalidatePath("/trabajos");
+  revalidatePath("/reportes");
 
   redirect(`/trabajos/${orden.id_orden}`);
 }

@@ -68,11 +68,13 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
         producto (
           nombre_producto,
           unidad_medida
-        )
-      ),
-       planta (
+        ),
+          planta (
       nombre_planta
      )
+
+      ),
+       
 
       pago (
         fecha_pago,
@@ -84,9 +86,34 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
     .eq("id_orden", id_orden)
     .single();
 
-  if (error || !data) {
-    redirect("/dashboard");
-  }
+ if (error || !data) {
+  return (
+    <main className="page-shell">
+      <section className="page-container">
+        <a
+          href="/dashboard"
+          className="inline-flex items-center rounded-xl px-2 py-1 text-sm font-bold text-emerald-800 hover:bg-emerald-100"
+        >
+          ← Volver al panel
+        </a>
+
+        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+          <h1 className="text-2xl font-black">
+            Error cargando comprobante
+          </h1>
+
+          <p className="mt-3 font-bold">
+            No se pudo cargar el trabajo.
+          </p>
+
+          <pre className="mt-4 overflow-auto rounded-xl bg-white p-4 text-sm">
+            {error?.message || "No se encontró el trabajo"}
+          </pre>
+        </div>
+      </section>
+    </main>
+  );
+}
 
   const trabajo = data as any;
   const propiedad = trabajo.propiedad;
@@ -96,7 +123,7 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
   return (
     <main className="page-shell">
       <section className="page-container max-w-5xl">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="no-print mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href="/dashboard"
             className="inline-flex items-center rounded-xl px-2 py-1 text-sm font-bold text-emerald-800 hover:bg-emerald-100"
@@ -117,7 +144,7 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
         </div>
         </div>
 
-        <div className="card invoice-paper overflow-hidden">
+        <div className="screen-only card invoice-paper overflow-hidden">
           <div className="card-dark px-5 py-4">
             <p className="text-sm font-semibold text-emerald-100">
               Comprobante interno
@@ -321,6 +348,167 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
             </section>
           </div>
         </div>
+
+
+        <div className="print-only invoice-print">
+  <div className="invoice-header">
+    <div>
+      <h1 className="invoice-title">Sistema de Jardinería Familiar</h1>
+      <p className="invoice-subtitle">
+        Comprobante interno de servicio
+      </p>
+      <p className="invoice-subtitle">
+        No válido como factura electrónica. Uso interno del negocio.
+      </p>
+    </div>
+
+    <div className="invoice-box">
+      <div className="invoice-label">Comprobante</div>
+      <div className="invoice-value">
+        #{String(trabajo.id_orden).slice(0, 8).toUpperCase()}
+      </div>
+
+      <div className="invoice-label" style={{ marginTop: "8px" }}>
+        Fecha del servicio
+      </div>
+      <div className="invoice-value">{trabajo.fecha_servicio}</div>
+
+      <div className="invoice-label" style={{ marginTop: "8px" }}>
+        Estado del pago
+      </div>
+      <div className="invoice-value">
+        {trabajo.estado_pago === "pagado" ? "Pagado" : "Pendiente"}
+      </div>
+    </div>
+  </div>
+
+  <div className="invoice-grid">
+    <div className="invoice-box">
+      <div className="invoice-label">Cliente</div>
+      <div className="invoice-value">{cliente?.nombre || "Sin cliente"}</div>
+
+      <div className="invoice-label" style={{ marginTop: "8px" }}>
+        Teléfono
+      </div>
+      <div>{cliente?.telefono || "Sin teléfono"}</div>
+    </div>
+
+    <div className="invoice-box">
+      <div className="invoice-label">Lugar del servicio</div>
+      <div className="invoice-value">
+        {propiedad?.nombre_propiedad || "Sin propiedad"}
+      </div>
+
+      <div style={{ marginTop: "8px" }}>
+        {propiedad?.ciudad ? `${propiedad.ciudad} · ` : ""}
+        {propiedad?.sector ? `${propiedad.sector} · ` : ""}
+        {propiedad?.direccion}
+      </div>
+    </div>
+  </div>
+
+  <h2 className="invoice-section-title">Servicios realizados</h2>
+
+  <table className="invoice-table">
+    <thead>
+      <tr>
+        <th>Detalle</th>
+        <th className="right">Valor</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {trabajo.detalle_servicio?.map((detalle: any, index: number) => (
+        <tr key={index}>
+          <td>
+            <strong>{detalle.servicio?.nombre_servicio}</strong>
+            {detalle.descripcion ? (
+              <div>{detalle.descripcion}</div>
+            ) : null}
+          </td>
+          <td className="right">{dinero(detalle.precio_servicio)}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  <h2 className="invoice-section-title">Productos usados o vendidos</h2>
+
+  {trabajo.producto_orden?.length ? (
+    <table className="invoice-table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th className="right">Cantidad</th>
+          <th className="right">Precio/u</th>
+          <th className="right">Total</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {trabajo.producto_orden.map((productoOrden: any, index: number) => (
+          <tr key={index}>
+            <td>
+              <strong>{productoOrden.producto?.nombre_producto}</strong>
+
+              {productoOrden.planta?.nombre_planta ? (
+                <div>Planta: {productoOrden.planta.nombre_planta}</div>
+              ) : null}
+            </td>
+
+            <td className="right">
+              {productoOrden.cantidad}{" "}
+              {productoOrden.producto?.unidad_medida || ""}
+            </td>
+
+            <td className="right">
+              {dinero(productoOrden.precio_venta_unitario)}
+            </td>
+
+            <td className="right">
+              {dinero(productoOrden.subtotal_venta)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <div className="invoice-box">
+      No se registraron productos en este trabajo.
+    </div>
+  )}
+
+  {trabajo.nota_trabajo ? (
+    <>
+      <h2 className="invoice-section-title">Observaciones</h2>
+      <div className="invoice-box">{trabajo.nota_trabajo}</div>
+    </>
+  ) : null}
+
+  <div className="invoice-totals">
+    <div className="invoice-total-row">
+      <span>Total servicios</span>
+      <strong>{dinero(trabajo.total_servicios)}</strong>
+    </div>
+
+    <div className="invoice-total-row">
+      <span>Total productos</span>
+      <strong>{dinero(trabajo.total_productos_venta)}</strong>
+    </div>
+
+    <div className="invoice-total-row invoice-grand-total">
+      <span>Total a cobrar</span>
+      <strong>{dinero(trabajo.total_general)}</strong>
+    </div>
+  </div>
+
+  <div className="invoice-note">
+    Este documento es un comprobante interno del servicio realizado. No reemplaza
+    una factura electrónica autorizada por el SRI.
+  </div>
+</div>
+
+
       </section>
     </main>
   );
