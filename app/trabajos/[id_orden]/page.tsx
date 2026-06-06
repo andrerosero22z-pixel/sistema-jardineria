@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import PrintButton from "@/components/PrintButton";
 
 type PageProps = {
   params: Promise<{
@@ -103,6 +104,10 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
             ← Volver al panel
           </Link>
 
+          <div className="flex flex-col gap-3 sm:flex-row">
+          <PrintButton />
+          
+
           <Link
             href="/trabajos/nuevo"
             className="btn-primary text-center"
@@ -110,8 +115,9 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
             + Registrar otro trabajo
           </Link>
         </div>
+        </div>
 
-        <div className="card overflow-hidden">
+        <div className="card invoice-paper overflow-hidden">
           <div className="card-dark px-5 py-4">
             <p className="text-sm font-semibold text-emerald-100">
               Comprobante interno
@@ -120,6 +126,9 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
             <h1 className="mt-1 text-2xl font-black tracking-tight">
               Trabajo registrado
             </h1>
+            <p className="mt-3 text-sm text-emerald-50">
+            No válido como factura electrónica. Uso interno del negocio.
+          </p>
 
             <p className="mt-2 text-sm text-emerald-50">
               Fecha del servicio: {trabajo.fecha_servicio}
