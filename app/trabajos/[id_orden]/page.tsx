@@ -69,6 +69,9 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
           unidad_medida
         )
       ),
+       planta (
+      nombre_planta
+     )
 
       pago (
         fecha_pago,
@@ -198,6 +201,11 @@ export default async function TrabajoDetallePage({ params }: PageProps) {
                           <p className="font-black text-slate-900">
                             {productoOrden.producto?.nombre_producto}
                           </p>
+                          {productoOrden.planta?.nombre_planta ? (
+                        <p className="mt-1 text-sm font-bold text-emerald-800">
+                          Planta: {productoOrden.planta.nombre_planta}
+                        </p>
+                      ) : null}
 
                           <p className="mt-1 text-sm text-slate-600">
                             Cantidad: {productoOrden.cantidad}{" "}
