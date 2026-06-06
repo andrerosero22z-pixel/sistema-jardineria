@@ -34,6 +34,7 @@ type TrabajoFormProps = {
   clientes: Cliente[];
   servicios: Servicio[];
   productos: Producto[];
+  plantas: Planta[];
 };
 
 type Producto = {
@@ -44,10 +45,15 @@ type Producto = {
   stock_actual: number;
   unidad_medida: string | null;
 };
+type Planta = {
+  id_planta: string;
+  nombre_planta: string;
+};
 
 type ProductoFila = {
   fila_id: string;
   id_producto: string;
+  id_planta: string;
   cantidad: string;
   costo_unitario: string;
   precio_venta_unitario: string;
@@ -80,6 +86,7 @@ export default function TrabajoForm({
   clientes,
   servicios,
   productos,
+  plantas,
 }: TrabajoFormProps) {
   const [idCliente, setIdCliente] = useState("");
   const [estadoPago, setEstadoPago] = useState("pendiente");
@@ -141,6 +148,7 @@ export default function TrabajoForm({
     {
       fila_id: crypto.randomUUID(),
       id_producto: "",
+      id_planta: "",
       cantidad: "",
       costo_unitario: "",
       precio_venta_unitario: "",
@@ -199,6 +207,17 @@ function actualizarProductoStock(
 }
 
 const productosConStock = productos.filter((producto) => producto.controla_stock);
+
+function productoEsPlanta(idProducto: string) {
+  const producto = productos.find((p) => p.id_producto === idProducto);
+
+  if (!producto) return false;
+
+  return (
+    producto.nombre_producto.toLowerCase().includes("planta") ||
+    producto.categoria?.toLowerCase().includes("planta")
+  );
+}
 
   return (
     <form action={crearTrabajo} className="space-y-7 p-7">
@@ -426,31 +445,56 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
         </div>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="label">Producto *</label>
-            <select
-              required
-              value={fila.id_producto}
-              onChange={(e) =>
-                actualizarProducto(
-                  fila.fila_id,
-                  "id_producto",
-                  e.target.value
-                )
-              }
-              className="input-field"
-            >
-              <option value="">Selecciona un producto</option>
-              {productos.map((producto) => (
-                <option
-                  key={producto.id_producto}
-                  value={producto.id_producto}
-                >
-                  {producto.nombre_producto}
-                </option>
-              ))}
-            </select>
-          </div>
+         <div>
+  <label className="label">Producto *</label>
+  <select
+    required
+    value={fila.id_producto}
+    onChange={(e) =>
+      actualizarProducto(
+        fila.fila_id,
+        "id_producto",
+        e.target.value
+      )
+    }
+    className="input-field"
+  >
+    <option value="">Selecciona un producto</option>
+    {productos.map((producto) => (
+      <option
+        key={producto.id_producto}
+        value={producto.id_producto}
+      >
+        {producto.nombre_producto}
+      </option>
+    ))}
+  </select>
+
+  {productoEsPlanta(fila.id_producto) ? (
+    <div className="mt-4">
+      <label className="label">Nombre de la planta *</label>
+      <select
+        required
+        value={fila.id_planta}
+        onChange={(e) =>
+          actualizarProducto(
+            fila.fila_id,
+            "id_planta",
+            e.target.value
+          )
+        }
+        className="input-field"
+      >
+        <option value="">Selecciona una planta</option>
+        {plantas.map((planta) => (
+          <option key={planta.id_planta} value={planta.id_planta}>
+            {planta.nombre_planta}
+          </option>
+        ))}
+      </select>
+    </div>
+  ) : null}
+</div>
 
           <div>
             <label className="label">Lugar de compra</label>
@@ -536,6 +580,7 @@ const productosConStock = productos.filter((producto) => producto.controla_stock
     ))}
   </div>
 </div>
+
 
 
 <div className="border-t border-slate-200 pt-6">

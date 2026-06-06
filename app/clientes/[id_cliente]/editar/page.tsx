@@ -23,7 +23,7 @@ export default async function EditarClientePage({ params }: PageProps) {
 
   const { data: cliente } = await supabase
     .from("cliente")
-    .select("id_cliente, nombre, telefono")
+    .select("id_cliete, nombre, telefono")
     .eq("id_cliente", id_cliente)
     .single();
 

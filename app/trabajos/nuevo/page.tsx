@@ -53,6 +53,13 @@ export default async function NuevoTrabajoPage({ searchParams }: PageProps) {
   .eq("estado_producto", "activo")
   .order("nombre_producto", { ascending: true });
 
+  const { data: plantas } = await supabase
+  .from("planta")
+  .select("id_planta, nombre_planta")
+  .eq("estado_planta", "activo")
+  .order("nombre_planta", { ascending: true });
+  
+
   return (
     <main className="page-shell">
       <section className="page-container max-w-4xl">
@@ -95,6 +102,7 @@ export default async function NuevoTrabajoPage({ searchParams }: PageProps) {
             clientes={clientes ?? []}
             servicios={servicios ?? []}
             productos={productos ?? []}
+            plantas={plantas ?? []}
           />
         </div>
       </section>

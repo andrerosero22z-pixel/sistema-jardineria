@@ -12,6 +12,7 @@ type ServicioFormulario = {
 
 type ProductoFormulario = {
   id_producto: string;
+  id_planta?: string;
   cantidad: string;
   costo_unitario: string;
   precio_venta_unitario: string;
@@ -120,6 +121,7 @@ const mensajeRecordatorio = String(
   const productosValidos = productos
     .map((producto) => ({
       id_producto: producto.id_producto?.trim(),
+      id_planta: producto.id_planta?.trim() || null,
       cantidad: Number(producto.cantidad),
       costo_unitario: toMoney(producto.costo_unitario),
     precio_venta_unitario: toMoney(producto.precio_venta_unitario),
@@ -229,6 +231,7 @@ const mensajeRecordatorio = String(
       .insert({
         id_orden: orden.id_orden,
         id_producto: producto.id_producto,
+        id_planta: producto.id_planta,
         id_detalle_compra: detalleCompra.id_detalle_compra,
         cantidad: producto.cantidad,
         precio_venta_unitario: producto.precio_venta_unitario,
@@ -260,20 +263,6 @@ const mensajeRecordatorio = String(
     redirect("/trabajos/nuevo?error=stock");
   }
 
-  const { error: productoOrdenError } = await supabase
-    .from("producto_orden")
-    .insert({
-      id_orden: orden.id_orden,
-      id_producto: producto.id_producto,
-      id_movimiento_salida: movimiento.id_movimiento,
-      cantidad: producto.cantidad,
-      precio_venta_unitario: producto.precio_venta_unitario,
-    });
-
-  if (productoOrdenError) {
-    console.error(productoOrdenError);
-    redirect("/trabajos/nuevo?error=producto_stock");
-  }
 }
 let fechaRecordatorio: string | null = null;
 
