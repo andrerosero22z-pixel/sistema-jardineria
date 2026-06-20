@@ -279,13 +279,16 @@ if (fechaRecordatorio) {
     `Recordatorio del trabajo realizado el ${borrador.fecha_trabajo}`;
 
   const { error: errorRecordatorio } = await supabase
-    .from("recordatorio")
-    .insert({
-      id_orden: orden.id_orden,
-      fecha_recordatorio: fechaRecordatorio,
-      mensaje: mensajeRecordatorio,
-      estado_recordatorio: "pendiente",
-    });
+  .from("recordatorio")
+  .insert({
+    id_orden: orden.id_orden,
+    fecha_recordatorio: fechaRecordatorio,
+    mensaje: mensajeRecordatorio,
+    estado_recordatorio: "pendiente",
+    creado_por: usuarioApp.id_usuario,
+  });
+
+
 
   if (errorRecordatorio) {
     throw new Error(`Error guardando recordatorio: ${errorRecordatorio.message}`);
