@@ -135,6 +135,18 @@ export default async function DashboardPage() {
             Ver resumen de trabajos, pagos y ganancias.
           </p>
         </Link>
+
+        <Link
+          href="/trabajos/ia"
+          className="rounded-2xl bg-white p-6 shadow hover:bg-green-50"
+        >
+          <h2 className="text-xl font-bold text-green-950">
+            Registrar con IA
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Escribir o dictar el trabajo para que la IA lo ordene.
+          </p>
+        </Link>
       </div>
     </section>
   </main>
