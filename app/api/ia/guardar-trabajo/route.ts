@@ -7,7 +7,14 @@ function numero(valor: any) {
   const n = Number(valor);
   return Number.isFinite(n) ? n : 0;
 }
+function sumarDiasFechaISO(fechaISO: string, dias: number) {
+  const [year, month, day] = fechaISO.split("-").map(Number);
 
+  const fecha = new Date(Date.UTC(year, month - 1, day));
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+
+  return fecha.toISOString().slice(0, 10);
+}
 function normalizarMetodoPago(metodo: string) {
   const m = (metodo || "").toLowerCase().trim();
 
@@ -253,6 +260,37 @@ export async function POST(req: Request) {
     if (errorOrden) {
       throw errorOrden;
     }
+
+    const diasRecordatorio = Number(borrador.recordatorio_dias || 0);
+
+let fechaRecordatorio = borrador.fecha_recordatorio || "";
+
+if (!fechaRecordatorio && diasRecordatorio > 0) {
+  fechaRecordatorio = sumarDiasFechaISO(
+    borrador.fecha_trabajo,
+    diasRecordatorio
+  );
+}
+
+if (fechaRecordatorio) {
+  const mensajeRecordatorio =
+    borrador.mensaje_recordatorio ||
+    borrador.recordatorio ||
+    `Recordatorio del trabajo realizado el ${borrador.fecha_trabajo}`;
+
+  const { error: errorRecordatorio } = await supabase
+    .from("recordatorio")
+    .insert({
+      id_orden: orden.id_orden,
+      fecha_recordatorio: fechaRecordatorio,
+      mensaje: mensajeRecordatorio,
+      estado_recordatorio: "pendiente",
+    });
+
+  if (errorRecordatorio) {
+    throw new Error(`Error guardando recordatorio: ${errorRecordatorio.message}`);
+  }
+}
 
     for (const servicio of servicios) {
       const idServicio = await obtenerOCrearServicio(supabase, servicio.nombre);

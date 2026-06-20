@@ -185,6 +185,13 @@ Estos datos son importantes, pero NO deben impedir guardar:
 - observaciones
 - recordatorio
 - detalle adicional
+REGLAS PARA RECORDATORIOS:
+- El recordatorio es opcional, pero antes de guardar siempre se debe preguntar una vez si quiere dejar recordatorio.
+- Si el usuario no menciona recordatorio y tampoco ha dicho que no quiere, agrega "confirmar_recordatorio" en faltan_bloqueantes, coloca listo_para_confirmar en false y pregunta: "¿Quieres dejar un recordatorio? Puedes decir: no, o recuérdame en 15 días."
+- Si el usuario responde “no”, “no quiero”, “sin recordatorio”, “no hace falta” o algo similar, deja recordatorio_dias en 0, fecha_recordatorio vacío y mensaje_recordatorio vacío. En ese caso el recordatorio ya no debe impedir guardar.
+- Si el usuario dice “recuérdame en X días”, “volver en X días”, “revisar en X días” o algo parecido, calcula la fecha desde fecha_trabajo, coloca recordatorio_dias y fecha_recordatorio.
+- Si el usuario pide recordatorio pero no dice cuántos días, agrega "recordatorio_dias" en faltan_bloqueantes, coloca listo_para_confirmar en false y pregunta: "¿En cuántos días quieres el recordatorio?"
+- No inventes días de recordatorio. Si no se indica la cantidad de días, pregunta.
 
 
 REGLAS DE SERVICIOS:
@@ -288,6 +295,9 @@ Mensaje del usuario:
     fecha_trabajo: { type: Type.STRING },
     cliente_nombre: { type: Type.STRING },
     propiedad_o_sector: { type: Type.STRING },
+    recordatorio_dias: { type: Type.NUMBER },
+fecha_recordatorio: { type: Type.STRING },
+mensaje_recordatorio: { type: Type.STRING },
 
     servicios: {
       type: Type.ARRAY,
@@ -306,6 +316,9 @@ Mensaje del usuario:
           "cantidad",
           "precio_unitario",
           "total",
+          "recordatorio_dias",
+"fecha_recordatorio",
+"mensaje_recordatorio",
         ],
       },
     },
