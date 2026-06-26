@@ -63,9 +63,21 @@ type PropiedadPosible = {
   sector?: string | null;
 };
 
+type ConsultaDirecta = {
+  tipo: "consultar_pagos" | "consultar_recordatorios" | "desconocido";
+  respuesta: string;
+  datos: unknown[];
+};
+
+function mensajeError(error: unknown) {
+  return error instanceof Error ? error.message : "Error inesperado";
+}
+
 export default function RegistrarTrabajoIA() {
   const [mensaje, setMensaje] = useState("");
   const [respuesta, setRespuesta] = useState<RespuestaIA | null>(null);
+  const [consultaDirecta, setConsultaDirecta] =
+    useState<ConsultaDirecta | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [correccion, setCorreccion] = useState("");
@@ -75,8 +87,34 @@ export default function RegistrarTrabajoIA() {
     setCargando(true);
     setError("");
     setRespuesta(null);
+    setConsultaDirecta(null);
 
     try {
+      const consultaRes = await fetch("/api/ia/consultar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mensaje }),
+      });
+
+      const consultaData = await consultaRes.json();
+
+      if (!consultaRes.ok) {
+        throw new Error(
+          consultaData.detalle || consultaData.error || "Error al consultar"
+        );
+      }
+
+      if (
+        consultaData.tipo === "consultar_pagos" ||
+        consultaData.tipo === "consultar_recordatorios" ||
+        consultaData.tipo === "desconocido"
+      ) {
+        setConsultaDirecta(consultaData);
+        return;
+      }
+
       const res = await fetch("/api/ia/interpretar-trabajo", {
         method: "POST",
         headers: {
@@ -92,8 +130,8 @@ export default function RegistrarTrabajoIA() {
       }
 
       setRespuesta(data);
-    } catch (err: any) {
-      setError(err.message || "Error inesperado");
+    } catch (err: unknown) {
+      setError(mensajeError(err));
     } finally {
       setCargando(false);
     }
@@ -125,8 +163,8 @@ export default function RegistrarTrabajoIA() {
 
     setRespuesta(data);
     setCorreccion("");
-  } catch (err: any) {
-    setError(err.message || "Error inesperado");
+  } catch (err: unknown) {
+    setError(mensajeError(err));
   } finally {
     setCargando(false);
   }
@@ -176,9 +214,10 @@ Cancelar = Seguir editando`
 
     setMensaje("");
     setRespuesta(null);
+    setConsultaDirecta(null);
     setCorreccion("");
-  } catch (err: any) {
-    setError(err.message || "Error inesperado");
+  } catch (err: unknown) {
+    setError(mensajeError(err));
   } finally {
     setGuardando(false);
   }
@@ -200,16 +239,17 @@ Cancelar = Seguir editando`
           Sistema de jardinería familiar
         </p>
         <h1 className="text-3xl font-bold text-green-950">
-          Registrar trabajo con IA
+          Asistente de jardiner&iacute;a
         </h1>
         <p className="mt-2 text-gray-600">
-          Escribe como hablarías normalmente. La IA ordenará el trabajo antes de guardarlo.
+          Escribe como hablarías normalmente. Puedes registrar trabajos,
+          consultar pagos pendientes o revisar recordatorios.
         </p>
       </div>
 
         <div className="rounded-xl bg-white p-4 shadow">
           <label className="mb-2 block font-semibold text-gray-700">
-            Cuéntame el trabajo realizado
+            Cuéntame qué necesitas
           </label>
 
           <textarea
@@ -225,7 +265,7 @@ Cancelar = Seguir editando`
             disabled={cargando || mensaje.trim().length === 0}
             className="mt-4 rounded-xl bg-green-800 px-5 py-3 font-semibold text-white shadow hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
-            {cargando ? "Analizando..." : "Analizar con IA"}
+            {cargando ? "Analizando..." : "Consultar / Registrar"}
           </button>
 
           {error && (
@@ -234,6 +274,18 @@ Cancelar = Seguir editando`
             </div>
           )}
         </div>
+
+        {consultaDirecta && (
+          <div className="mt-5 rounded-xl bg-white p-4 shadow">
+            <h2 className="mb-3 text-xl font-bold text-green-800">
+              Respuesta del asistente
+            </h2>
+
+            <p className="whitespace-pre-line break-words text-sm leading-6 text-gray-700">
+              {consultaDirecta.respuesta}
+            </p>
+          </div>
+        )}
 
         {respuesta && (
           <div className="mt-5 rounded-xl bg-white p-4 shadow">
