@@ -64,7 +64,11 @@ type PropiedadPosible = {
 };
 
 type ConsultaDirecta = {
-  tipo: "consultar_pagos" | "consultar_recordatorios" | "desconocido";
+  tipo:
+    | "consultar_pagos"
+    | "consultar_recordatorios"
+    | "actualizar_pago"
+    | "desconocido";
   respuesta: string;
   datos: unknown[];
 };
@@ -78,6 +82,8 @@ export default function RegistrarTrabajoIA() {
   const [respuesta, setRespuesta] = useState<RespuestaIA | null>(null);
   const [consultaDirecta, setConsultaDirecta] =
     useState<ConsultaDirecta | null>(null);
+  const [accionPagoPendiente, setAccionPagoPendiente] =
+    useState<unknown | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [correccion, setCorreccion] = useState("");
@@ -90,6 +96,11 @@ export default function RegistrarTrabajoIA() {
     setConsultaDirecta(null);
 
     try {
+      if (accionPagoPendiente) {
+        await procesarActualizacionPago(mensaje, accionPagoPendiente);
+        return;
+      }
+
       const consultaRes = await fetch("/api/ia/consultar", {
         method: "POST",
         headers: {
@@ -111,7 +122,13 @@ export default function RegistrarTrabajoIA() {
         consultaData.tipo === "consultar_recordatorios" ||
         consultaData.tipo === "desconocido"
       ) {
+        setAccionPagoPendiente(null);
         setConsultaDirecta(consultaData);
+        return;
+      }
+
+      if (consultaData.tipo === "actualizar_pago") {
+        await procesarActualizacionPago(mensaje, null);
         return;
       }
 
@@ -130,11 +147,41 @@ export default function RegistrarTrabajoIA() {
       }
 
       setRespuesta(data);
+      setAccionPagoPendiente(null);
     } catch (err: unknown) {
       setError(mensajeError(err));
     } finally {
       setCargando(false);
     }
+  }
+
+  async function procesarActualizacionPago(
+    mensajePago: string,
+    accionPendiente: unknown | null
+  ) {
+    const res = await fetch("/api/ia/actualizar-pago", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mensaje: mensajePago,
+        accionPendiente,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detalle || data.error || "Error al actualizar pago");
+    }
+
+    setConsultaDirecta({
+      tipo: "actualizar_pago",
+      respuesta: data.respuesta,
+      datos: data.datos || [],
+    });
+    setAccionPagoPendiente(data.accionPendiente || null);
   }
 
   async function actualizarBorradorConIA() {
@@ -215,6 +262,7 @@ Cancelar = Seguir editando`
     setMensaje("");
     setRespuesta(null);
     setConsultaDirecta(null);
+    setAccionPagoPendiente(null);
     setCorreccion("");
   } catch (err: unknown) {
     setError(mensajeError(err));
@@ -243,7 +291,7 @@ Cancelar = Seguir editando`
         </h1>
         <p className="mt-2 text-gray-600">
           Escribe como hablarías normalmente. Puedes registrar trabajos,
-          consultar pagos pendientes o revisar recordatorios.
+          consultar pagos, marcar pagos realizados o revisar recordatorios.
         </p>
       </div>
 

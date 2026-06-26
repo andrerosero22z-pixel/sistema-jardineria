@@ -8,6 +8,7 @@ type TipoAsistente =
   | "consultar_pagos"
   | "consultar_recordatorios"
   | "registrar_trabajo"
+  | "actualizar_pago"
   | "desconocido";
 
 const ai = new GoogleGenAI({
@@ -64,13 +65,14 @@ Categorías posibles:
 - consultar_pagos: cuando el usuario quiere saber quién debe, quién no pagó, qué trabajos están pendientes de pago, a quién falta cobrar, quién falta que cancele, cuánto falta cobrar, trabajos fiados o deudas.
 - consultar_recordatorios: cuando el usuario quiere saber qué recordatorios tiene, a quién toca volver, qué trabajos toca revisar, visitas pendientes, trabajos por recordar o recordatorios vencidos/próximos.
 - registrar_trabajo: cuando el usuario está contando un trabajo realizado, un servicio, una venta, una poda, mantenimiento, fumigación, productos usados, pagos o registro de una visita.
+- actualizar_pago: cuando el usuario dice que alguien ya pagó, canceló, pagó todo, pagó por transferencia o efectivo, pide marcar un trabajo como pagado, cambiarlo a pagado o confirmar un pago pendiente. No lo confundas con registrar un trabajo nuevo.
 - desconocido: cuando no se entiende qué quiere hacer.
 
 Mensaje del usuario: ${JSON.stringify(mensaje)}
 
 Responde únicamente en JSON válido con esta forma:
 {
-  "tipo": "consultar_pagos" | "consultar_recordatorios" | "registrar_trabajo" | "desconocido"
+  "tipo": "consultar_pagos" | "consultar_recordatorios" | "registrar_trabajo" | "actualizar_pago" | "desconocido"
 }
 
 No agregues explicación.
@@ -81,6 +83,7 @@ No agregues explicación.
     "consultar_pagos",
     "consultar_recordatorios",
     "registrar_trabajo",
+    "actualizar_pago",
     "desconocido",
   ];
 
@@ -377,7 +380,7 @@ export async function POST(req: Request) {
 
     const tipo = await clasificarIntencion(mensaje);
 
-    if (tipo === "registrar_trabajo") {
+    if (tipo === "registrar_trabajo" || tipo === "actualizar_pago") {
       return NextResponse.json({
         tipo,
         respuesta: "",
