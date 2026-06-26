@@ -443,15 +443,11 @@ async function obtenerUsuarioApp(supabase: SupabaseServerClient) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return { error: "No hay usuario autenticado.", status: 401 as const };
-  }
+  const query = supabase.from("usuario_app").select("id_usuario");
 
-  const { data: usuarioApp } = await supabase
-    .from("usuario_app")
-    .select("id_usuario")
-    .eq("auth_user_id", user.id)
-    .single();
+  const { data: usuarioApp } = user
+    ? await query.eq("auth_user_id", user.id).single()
+    : await query.limit(1).maybeSingle();
 
   if (!usuarioApp) {
     return { error: "No se encontro el usuario interno.", status: 400 as const };

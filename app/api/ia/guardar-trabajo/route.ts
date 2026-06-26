@@ -156,18 +156,18 @@ export async function POST(req: Request) {
       error: errorUser,
     } = await supabase.auth.getUser();
 
-    if (errorUser || !user) {
+    if (errorUser) {
       return NextResponse.json(
-        { error: "No hay usuario autenticado." },
+        { error: "No se pudo revisar el usuario autenticado." },
         { status: 401 }
       );
     }
 
-    const { data: usuarioApp, error: errorUsuarioApp } = await supabase
-      .from("usuario_app")
-      .select("id_usuario")
-      .eq("auth_user_id", user.id)
-      .single();
+    const queryUsuarioApp = supabase.from("usuario_app").select("id_usuario");
+
+    const { data: usuarioApp, error: errorUsuarioApp } = user
+      ? await queryUsuarioApp.eq("auth_user_id", user.id).single()
+      : await queryUsuarioApp.limit(1).maybeSingle();
 
     if (errorUsuarioApp || !usuarioApp) {
       return NextResponse.json(
