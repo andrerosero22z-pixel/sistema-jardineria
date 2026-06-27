@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createApiSupabaseClient, esCanalChat } from "@/lib/supabase/api";
+import { detalleError, lanzarErrorSupabase } from "@/lib/supabase/errors";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,7 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createApiSupabaseClient>>;
 
 type DatosPagoExtraidos = {
   cliente_nombre: string;
@@ -67,10 +68,6 @@ type AccionPagoPendiente = {
   fecha_pago?: string;
   pago_total?: boolean;
 };
-
-function mensajeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function dinero(valor: number | string | null | undefined) {
   return `$${Number(valor || 0).toFixed(2)}`;
@@ -390,7 +387,7 @@ async function cargarPendientes(supabase: SupabaseServerClient) {
     .order("fecha_servicio", { ascending: false });
 
   if (error) {
-    throw error;
+    lanzarErrorSupabase(error);
   }
 
   return (data ?? []) as OrdenPendiente[];
@@ -413,8 +410,7 @@ async function cargarServiciosOrden(
     .eq("id_orden", idOrden);
 
   if (error) {
-    console.error("Error cargando servicios de orden:", error);
-    return [];
+    lanzarErrorSupabase(error);
   }
 
   return data ?? [];
@@ -438,16 +434,30 @@ async function respuestaServicioSeparadoSiAplica(
   return null;
 }
 
-async function obtenerUsuarioApp(supabase: SupabaseServerClient) {
+async function obtenerUsuarioApp(
+  supabase: SupabaseServerClient,
+  usarUsuarioFallback: boolean
+) {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+    error: errorUser,
+  } = usarUsuarioFallback
+    ? { data: { user: null }, error: null }
+    : await supabase.auth.getUser();
+
+  if (errorUser) {
+    lanzarErrorSupabase(errorUser);
+  }
 
   const query = supabase.from("usuario_app").select("id_usuario");
 
-  const { data: usuarioApp } = user
+  const { data: usuarioApp, error } = user
     ? await query.eq("auth_user_id", user.id).single()
     : await query.limit(1).maybeSingle();
+
+  if (error) {
+    lanzarErrorSupabase(error);
+  }
 
   if (!usuarioApp) {
     return { error: "No se encontro el usuario interno.", status: 400 as const };
@@ -472,6 +482,10 @@ async function confirmarPago(
     .single();
 
   if (ordenError || !orden || orden.estado_pago === "pagado") {
+    if (ordenError) {
+      lanzarErrorSupabase(ordenError);
+    }
+
     return "No encontre ese trabajo pendiente. Tal vez ya fue marcado como pagado.";
   }
 
@@ -486,7 +500,7 @@ async function confirmarPago(
   });
 
   if (pagoError) {
-    throw pagoError;
+    lanzarErrorSupabase(pagoError);
   }
 
   const { error: ordenUpdateError } = await supabase
@@ -495,7 +509,7 @@ async function confirmarPago(
     .eq("id_orden", accion.id_orden);
 
   if (ordenUpdateError) {
-    throw ordenUpdateError;
+    lanzarErrorSupabase(ordenUpdateError);
   }
 
   revalidatePath("/pagos");
@@ -525,6 +539,10 @@ async function confirmarPagoGrupal(
       .single();
 
     if (ordenError || !orden || orden.estado_pago === "pagado") {
+      if (ordenError) {
+        lanzarErrorSupabase(ordenError);
+      }
+
       continue;
     }
 
@@ -537,7 +555,7 @@ async function confirmarPagoGrupal(
     });
 
     if (pagoError) {
-      throw pagoError;
+      lanzarErrorSupabase(pagoError);
     }
 
     const { error: ordenUpdateError } = await supabase
@@ -546,7 +564,7 @@ async function confirmarPagoGrupal(
       .eq("id_orden", ordenPendiente.id_orden);
 
     if (ordenUpdateError) {
-      throw ordenUpdateError;
+      lanzarErrorSupabase(ordenUpdateError);
     }
 
     revalidatePath(`/trabajos/${ordenPendiente.id_orden}`);
@@ -586,8 +604,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = await createClient();
-    const usuario = await obtenerUsuarioApp(supabase);
+    const supabase = await createApiSupabaseClient(req);
+    const usuario = await obtenerUsuarioApp(supabase, esCanalChat(req));
 
     if ("error" in usuario) {
       return NextResponse.json({ error: usuario.error }, { status: usuario.status });
@@ -806,7 +824,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: "Error al actualizar el pago.",
-        detalle: mensajeError(error),
+        detalle: detalleError(error),
       },
       { status: 500 }
     );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createApiSupabaseClient, esCanalChat } from "@/lib/supabase/api";
+import { detalleError, lanzarErrorSupabase } from "@/lib/supabase/errors";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,7 @@ async function obtenerOCrearServicio(supabase: any, nombreServicio: string) {
     .maybeSingle();
 
   if (errorBuscar) {
-    throw errorBuscar;
+    lanzarErrorSupabase(errorBuscar);
   }
 
   if (existente) {
@@ -58,7 +59,7 @@ async function obtenerOCrearServicio(supabase: any, nombreServicio: string) {
     .single();
 
   if (errorCrear) {
-    throw errorCrear;
+    lanzarErrorSupabase(errorCrear);
   }
 
   return nuevo.id_servicio;
@@ -81,7 +82,7 @@ async function obtenerProductoParaOrden(supabase: any, producto: any) {
       .maybeSingle();
 
     if (error) {
-      throw error;
+      lanzarErrorSupabase(error);
     }
 
     if (encontrado) {
@@ -98,7 +99,7 @@ async function obtenerProductoParaOrden(supabase: any, producto: any) {
     .maybeSingle();
 
   if (errorOtro) {
-    throw errorOtro;
+    lanzarErrorSupabase(errorOtro);
   }
 
   if (!otro) {
@@ -149,18 +150,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = await createApiSupabaseClient(req);
+    const esCanalSinSesion = esCanalChat(req);
 
     const {
       data: { user },
       error: errorUser,
-    } = await supabase.auth.getUser();
+    } = esCanalSinSesion
+      ? { data: { user: null }, error: null }
+      : await supabase.auth.getUser();
 
     if (errorUser) {
-      return NextResponse.json(
-        { error: "No se pudo revisar el usuario autenticado." },
-        { status: 401 }
-      );
+      lanzarErrorSupabase(errorUser);
     }
 
     const queryUsuarioApp = supabase.from("usuario_app").select("id_usuario");
@@ -170,6 +171,10 @@ export async function POST(req: Request) {
       : await queryUsuarioApp.limit(1).maybeSingle();
 
     if (errorUsuarioApp || !usuarioApp) {
+      if (errorUsuarioApp) {
+        lanzarErrorSupabase(errorUsuarioApp);
+      }
+
       return NextResponse.json(
         { error: "No se encontró el usuario interno del sistema." },
         { status: 400 }
@@ -258,7 +263,7 @@ export async function POST(req: Request) {
       .single();
 
     if (errorOrden) {
-      throw errorOrden;
+      lanzarErrorSupabase(errorOrden);
     }
 
     const diasRecordatorio = Number(borrador.recordatorio_dias || 0);
@@ -291,7 +296,7 @@ if (fechaRecordatorio) {
 
 
   if (errorRecordatorio) {
-    throw new Error(`Error guardando recordatorio: ${errorRecordatorio.message}`);
+    lanzarErrorSupabase(errorRecordatorio);
   }
 }
 
@@ -308,7 +313,7 @@ if (fechaRecordatorio) {
         });
 
       if (errorDetalle) {
-        throw errorDetalle;
+        lanzarErrorSupabase(errorDetalle);
       }
     }
 
@@ -332,7 +337,7 @@ if (fechaRecordatorio) {
         .single();
 
       if (errorCompra) {
-        throw errorCompra;
+        lanzarErrorSupabase(errorCompra);
       }
 
       compraCreada = compra;
@@ -357,7 +362,7 @@ if (fechaRecordatorio) {
             .single();
 
         if (errorDetalleCompra) {
-          throw errorDetalleCompra;
+          lanzarErrorSupabase(errorDetalleCompra);
         }
 
         detalleCompraId = detalleCompra.id_detalle_compra;
@@ -376,7 +381,7 @@ if (fechaRecordatorio) {
         });
 
       if (errorProductoOrden) {
-        throw errorProductoOrden;
+        lanzarErrorSupabase(errorProductoOrden);
       }
     }
 
@@ -390,7 +395,7 @@ if (fechaRecordatorio) {
       });
 
       if (errorPago) {
-        throw errorPago;
+        lanzarErrorSupabase(errorPago);
       }
     }
 
@@ -405,7 +410,7 @@ if (fechaRecordatorio) {
     return NextResponse.json(
       {
         error: "Error al guardar el trabajo.",
-        detalle: error?.message ?? String(error),
+        detalle: detalleError(error),
       },
       { status: 500 }
     );

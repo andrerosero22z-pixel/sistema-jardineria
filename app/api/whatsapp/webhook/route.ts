@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { lanzarErrorSupabase } from "@/lib/supabase/errors";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import {
   enviarMensajeWhatsApp,
   numeroPermitido,
@@ -46,6 +47,8 @@ function jsonRequest(data: unknown) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-asistente-canal": "whatsapp",
+      "x-asistente-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY || "",
     },
     body: JSON.stringify(data),
   });
@@ -138,7 +141,7 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
 }
 
 async function obtenerBorradorPendiente(telefono: string) {
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("whatsapp_borrador")
     .select("id, tipo, datos")
@@ -149,8 +152,7 @@ async function obtenerBorradorPendiente(telefono: string) {
     .maybeSingle();
 
   if (error) {
-    console.error("Error leyendo whatsapp_borrador:", error);
-    return null;
+    lanzarErrorSupabase(error);
   }
 
   return data as BorradorWhatsApp | null;
@@ -162,7 +164,7 @@ async function crearBorrador(
   mensajeOriginal: string,
   datos: unknown
 ) {
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const { error } = await supabase.from("whatsapp_borrador").insert({
     telefono,
     tipo,
@@ -172,7 +174,7 @@ async function crearBorrador(
   });
 
   if (error) {
-    console.error("Error creando whatsapp_borrador:", error);
+    lanzarErrorSupabase(error);
   }
 }
 
@@ -181,7 +183,7 @@ async function actualizarBorrador(
   estado: "pendiente" | "guardado" | "cancelado",
   datos?: unknown
 ) {
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const update: Record<string, unknown> = {
     estado,
     fecha_actualizacion: new Date().toISOString(),
@@ -197,7 +199,7 @@ async function actualizarBorrador(
     .eq("id", id);
 
   if (error) {
-    console.error("Error actualizando whatsapp_borrador:", error);
+    lanzarErrorSupabase(error);
   }
 }
 

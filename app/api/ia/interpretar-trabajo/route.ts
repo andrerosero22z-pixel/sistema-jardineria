@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createApiSupabaseClient } from "@/lib/supabase/api";
+import { detalleError, lanzarErrorSupabase } from "@/lib/supabase/errors";
 
 export const runtime = "nodejs";
 
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     }
 
     const fechaActual = fechaActualEcuador();
-    const supabase = await createClient();
+    const supabase = await createApiSupabaseClient(req);
 
 const { data: serviciosCatalogo } = await supabase
   .from("servicio")
@@ -515,7 +516,7 @@ const { data: clientesTodos, error: errorClientesTodos } = await supabase
   .limit(500);
 
 if (errorClientesTodos) {
-  console.error("Error cargando clientes:", errorClientesTodos);
+  lanzarErrorSupabase(errorClientesTodos);
 } else {
   clientesPosibles = (clientesTodos || [])
     .map((cliente: any) => {
@@ -570,7 +571,7 @@ if (clientesPosibles.length === 1) {
   console.log("ERROR PROPIEDADES:", errorPropiedades);
 
   if (errorPropiedades) {
-    console.error("Error buscando propiedades:", errorPropiedades);
+    lanzarErrorSupabase(errorPropiedades);
   }
 
   data.propiedades_posibles = propiedades || [];
@@ -729,8 +730,7 @@ for (const producto of data.productos || []) {
     .limit(5);
 
   if (errorProductos) {
-    console.error("Error buscando productos:", errorProductos);
-    continue;
+    lanzarErrorSupabase(errorProductos);
   }
 
   if (productosEncontrados && productosEncontrados.length === 1) {
@@ -764,7 +764,7 @@ for (const producto of data.productos || []) {
     .maybeSingle();
 
   if (errorOtroProducto) {
-    console.error("Error buscando Otro producto:", errorOtroProducto);
+    lanzarErrorSupabase(errorOtroProducto);
   }
 
   if (otroProducto) {
@@ -813,7 +813,10 @@ data.puede_guardar =
     console.error("Error IA:", error);
 
     return NextResponse.json(
-      { error: "Error al interpretar el trabajo con Gemini." },
+      {
+        error: "Error al interpretar el trabajo con Gemini.",
+        detalle: detalleError(error),
+      },
       { status: 500 }
     );
   }

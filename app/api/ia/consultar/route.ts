@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createApiSupabaseClient } from "@/lib/supabase/api";
+import { detalleError, lanzarErrorSupabase } from "@/lib/supabase/errors";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createApiSupabaseClient>>;
 
 type ClienteResumen = {
   nombre?: string | null;
@@ -49,10 +50,6 @@ type RecordatorioPendiente = {
     propiedad?: PropiedadResumen | null;
   } | null;
 };
-
-function mensajeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 async function clasificarIntencion(mensaje: string): Promise<TipoAsistente> {
   const prompt = `
@@ -242,7 +239,7 @@ async function consultarPagos(supabase: SupabaseServerClient) {
     .order("fecha_servicio", { ascending: false });
 
   if (error) {
-    throw error;
+    lanzarErrorSupabase(error);
   }
 
   const datos = (ordenes ?? []) as OrdenPendiente[];
@@ -310,7 +307,7 @@ async function consultarRecordatorios(supabase: SupabaseServerClient) {
     .order("fecha_recordatorio", { ascending: true });
 
   if (error) {
-    throw error;
+    lanzarErrorSupabase(error);
   }
 
   const todos = (recordatorios ?? []) as RecordatorioPendiente[];
@@ -397,7 +394,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const supabase = await createClient();
+    const supabase = await createApiSupabaseClient(req);
 
     await supabase.auth.getUser();
 
@@ -412,7 +409,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: "Error al consultar el asistente.",
-        detalle: mensajeError(error),
+        detalle: detalleError(error),
       },
       { status: 500 }
     );
