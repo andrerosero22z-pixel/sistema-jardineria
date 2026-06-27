@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/telegram/recordatorio-diario",
+      "schedule": "0 23 * * *"
+    }
+  ]
+}
