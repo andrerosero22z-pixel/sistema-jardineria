@@ -120,6 +120,7 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
     texto(borrador.recordatorio) ||
     texto(borrador.fecha_recordatorio) ||
     (Number(borrador.recordatorio_dias || 0) > 0 ? "Si" : "No");
+  const preguntaSiguiente = texto(borrador.pregunta_siguiente);
 
   return [
     "Revisa antes de guardar:",
@@ -136,6 +137,7 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
     `Pendiente: $${Number(borrador.pendiente || 0).toFixed(2)}`,
     `Recordatorio: ${recordatorio}`,
     "",
+    ...(preguntaSiguiente ? [preguntaSiguiente, ""] : []),
     "Responde GUARDAR para registrar o escribe una correccion.",
   ].join("\n");
 }

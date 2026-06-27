@@ -529,7 +529,7 @@ Cancelar = Seguir editando`
   </button>
 </div>
 
-            <div className="mt-4 rounded-lg bg-green-50 p-3 text-green-900">
+            <div className="mt-4 whitespace-pre-line rounded-lg bg-green-50 p-3 text-green-900">
               {respuesta.pregunta_siguiente}
             </div>
 

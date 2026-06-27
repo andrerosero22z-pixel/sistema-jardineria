@@ -44,12 +44,26 @@ type RecordatorioTelegram = {
   } | null;
 };
 
+type OpcionTelegram = Record<string, unknown>;
+
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === "object" && valor !== null;
 }
 
 function texto(valor: unknown) {
   return typeof valor === "string" ? valor : "";
+}
+
+function detalleError(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    return JSON.stringify(error);
+  }
+
+  return String(error);
 }
 
 function textoNormalizado(mensaje: string) {
@@ -82,6 +96,100 @@ function dinero(valor: number | string | null | undefined) {
 
 function arreglo(valor: unknown) {
   return Array.isArray(valor) ? valor : [];
+}
+
+function idTexto(valor: unknown) {
+  if (typeof valor === "string") return valor.trim();
+  if (typeof valor === "number") return String(valor);
+  return "";
+}
+
+function faltantesBloqueantes(borrador: Record<string, unknown>) {
+  const faltantes = arreglo(borrador.faltan_bloqueantes)
+    .map((faltante) => texto(faltante).trim())
+    .filter(Boolean);
+
+  if (!idTexto(borrador.cliente_id) && !faltantes.includes("seleccionar cliente")) {
+    faltantes.push("seleccionar cliente");
+  }
+
+  if (
+    !idTexto(borrador.propiedad_id) &&
+    !faltantes.includes("seleccionar propiedad")
+  ) {
+    faltantes.push("seleccionar propiedad");
+  }
+
+  return Array.from(new Set(faltantes));
+}
+
+function puedeGuardarBorrador(borrador: Record<string, unknown>) {
+  return (
+    borrador.puede_guardar === true &&
+    Boolean(idTexto(borrador.cliente_id)) &&
+    Boolean(idTexto(borrador.propiedad_id)) &&
+    faltantesBloqueantes(borrador).length === 0
+  );
+}
+
+function etiquetaOpcion(opcion: OpcionTelegram) {
+  const nombre =
+    texto(opcion.nombre) ||
+    texto(opcion.nombre_propiedad) ||
+    texto(opcion.cliente_nombre) ||
+    "Sin nombre";
+  const lugar =
+    texto(opcion.sector) ||
+    texto(opcion.ciudad) ||
+    texto(opcion.direccion) ||
+    texto(opcion.telefono);
+
+  return lugar ? `${nombre} - ${lugar}` : nombre;
+}
+
+function listaOpciones(titulo: string, opciones: unknown, cierre: string) {
+  const items = arreglo(opciones).filter(esObjeto);
+
+  if (items.length === 0) {
+    return "";
+  }
+
+  return [
+    titulo,
+    "",
+    ...items.map((item, index) => `${index + 1}. ${etiquetaOpcion(item)}`),
+    "",
+    cierre,
+  ].join("\n");
+}
+
+function avisoFaltantesTrabajo(borrador: Record<string, unknown>) {
+  const faltantes = faltantesBloqueantes(borrador);
+  const lineas = [
+    "Falta información antes de guardar:",
+    "",
+    ...(faltantes.length
+      ? faltantes.map((faltante) => `- ${faltante}`)
+      : ["- completar información pendiente"]),
+  ];
+  const propiedades = listaOpciones(
+    "Encontré varias propiedades para este cliente:",
+    borrador.propiedades_posibles,
+    "Responde con el número o el nombre de la propiedad."
+  );
+  const clientes = listaOpciones(
+    "Encontré varios clientes parecidos:",
+    borrador.clientes_posibles,
+    "Responde con el número o el nombre del cliente."
+  );
+  const preguntaSiguiente = texto(borrador.pregunta_siguiente);
+
+  return [
+    ...lineas,
+    ...(propiedades ? ["", propiedades] : []),
+    ...(clientes ? ["", clientes] : []),
+    ...(preguntaSiguiente ? ["", preguntaSiguiente] : []),
+  ].join("\n");
 }
 
 function fechaActualEcuador() {
@@ -273,6 +381,8 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
     texto(borrador.recordatorio) ||
     texto(borrador.fecha_recordatorio) ||
     (Number(borrador.recordatorio_dias || 0) > 0 ? "Si" : "No");
+  const preguntaSiguiente = texto(borrador.pregunta_siguiente);
+  const puedeGuardar = puedeGuardarBorrador(borrador);
 
   return [
     "Revisa antes de guardar:",
@@ -289,7 +399,12 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
     `Pendiente: $${Number(borrador.pendiente || 0).toFixed(2)}`,
     `Recordatorio: ${recordatorio}`,
     "",
-    "Responde GUARDAR para registrar o escribe una correccion.",
+    ...(puedeGuardar
+      ? [
+          ...(preguntaSiguiente ? [preguntaSiguiente, ""] : []),
+          "Responde GUARDAR para registrar o escribe una correccion.",
+        ]
+      : [avisoFaltantesTrabajo(borrador), "", "Escribe la correccion para continuar."]),
   ].join("\n");
 }
 
@@ -297,11 +412,24 @@ async function procesarGuardarTrabajo(
   chatId: string,
   borrador: BorradorTelegram
 ) {
+  if (!esObjeto(borrador.datos) || !puedeGuardarBorrador(borrador.datos)) {
+    const respuesta = esObjeto(borrador.datos)
+      ? resumenTrabajo(borrador.datos)
+      : "No pude guardar: el borrador pendiente no tiene datos validos.";
+
+    await enviarMensajeTelegram(chatId, respuesta);
+    return respuesta;
+  }
+
   const res = await guardarTrabajo(jsonRequest({ borrador: borrador.datos }));
   const data = await leerJson(res);
 
   if (!res.ok) {
-    throw new Error(texto(data.detalle) || texto(data.error) || "No se pudo guardar");
+    const detalle = texto(data.detalle) || texto(data.error) || "No se pudo guardar";
+    const respuesta = `No pude guardar: ${detalle}`;
+    console.error("Error guardando desde Telegram:", JSON.stringify(data, null, 2));
+    await enviarMensajeTelegram(chatId, respuesta);
+    return respuesta;
   }
 
   await actualizarBorradorTelegram(borrador.id, "guardado");
@@ -491,12 +619,16 @@ export async function POST(req: Request) {
       try {
         await procesarMensaje(mensaje.chatId, mensaje.text);
       } catch (error) {
+        console.error(
+          "Error guardando desde Telegram:",
+          JSON.stringify(error, null, 2)
+        );
         console.error("Error procesando Telegram:", error);
 
         try {
           await enviarMensajeTelegram(
             mensaje.chatId,
-            "Hubo un error procesando tu mensaje. Intenta de nuevo."
+            `No pude procesar el mensaje: ${detalleError(error)}`
           );
         } catch (sendError) {
           console.error("Error enviando error por Telegram:", sendError);

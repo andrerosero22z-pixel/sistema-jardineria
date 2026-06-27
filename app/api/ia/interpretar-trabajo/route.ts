@@ -477,12 +477,171 @@ function normalizarTextoBusqueda(texto: string) {
     .trim();
 }
 
+function limpiarTextoPropiedad(texto: string) {
+  return normalizarTextoBusqueda(texto)
+    .replace(
+      /\b(es|esta|propiedad|casa|quinta|la|el|de|del|en|opcion|numero|nro|num)\b/g,
+      " "
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function indicePropiedadPorRespuesta(texto: string) {
+  const normalizado = normalizarTextoBusqueda(texto);
+  const numero = normalizado.match(/\b([1-9])\b/)?.[1];
+
+  if (numero) {
+    return Number(numero) - 1;
+  }
+
+  if (
+    normalizado.includes("primera") ||
+    normalizado.includes("primero") ||
+    normalizado.includes("primer")
+  ) {
+    return 0;
+  }
+
+  if (normalizado.includes("segunda") || normalizado.includes("segundo")) {
+    return 1;
+  }
+
+  if (normalizado.includes("tercera") || normalizado.includes("tercero")) {
+    return 2;
+  }
+
+  if (normalizado.includes("cuarta") || normalizado.includes("cuarto")) {
+    return 3;
+  }
+
+  if (normalizado.includes("quinta") || normalizado.includes("quinto")) {
+    return 4;
+  }
+
+  return -1;
+}
+
+function textoPropiedad(propiedad: any) {
+  return [
+    propiedad?.nombre,
+    propiedad?.direccion,
+    propiedad?.sector,
+    propiedad?.ciudad,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function etiquetaPropiedad(propiedad: any) {
+  const nombre = propiedad?.nombre || "Sin nombre";
+  const lugar = propiedad?.sector || propiedad?.ciudad || propiedad?.direccion || "";
+
+  return lugar ? `${nombre} — ${lugar}` : nombre;
+}
+
+function preguntaSeleccionPropiedad(propiedades: any[], encabezado: string) {
+  return [
+    encabezado,
+    "",
+    ...propiedades.map(
+      (propiedad, index) => `${index + 1}. ${etiquetaPropiedad(propiedad)}`
+    ),
+    "",
+    "Indica cuál fue.",
+  ].join("\n");
+}
+
+function resolverPropiedadDesdeRespuesta(
+  mensajeUsuario: string,
+  propiedadDetectada: string,
+  propiedades: any[]
+) {
+  const indice = indicePropiedadPorRespuesta(mensajeUsuario);
+
+  if (indice >= 0 && propiedades[indice]) {
+    return {
+      estado: "unica" as const,
+      propiedad: propiedades[indice],
+      coincidencias: [propiedades[indice]],
+    };
+  }
+
+  const busqueda = limpiarTextoPropiedad(propiedadDetectada || mensajeUsuario);
+
+  if (!busqueda) {
+    return { estado: "sin_busqueda" as const, coincidencias: [] };
+  }
+
+  const palabras = busqueda
+    .split(" ")
+    .map((palabra) => palabra.trim())
+    .filter((palabra) => palabra.length >= 3);
+
+  const coincidencias = propiedades.filter((propiedad) => {
+    const texto = normalizarTextoBusqueda(textoPropiedad(propiedad));
+
+    if (!texto) return false;
+    if (texto.includes(busqueda) || busqueda.includes(texto)) return true;
+
+    return (
+      palabras.length > 0 &&
+      palabras.every((palabra) => texto.includes(palabra))
+    );
+  });
+
+  if (coincidencias.length === 1) {
+    return {
+      estado: "unica" as const,
+      propiedad: coincidencias[0],
+      coincidencias,
+    };
+  }
+
+  if (coincidencias.length > 1) {
+    return { estado: "varias" as const, coincidencias };
+  }
+
+  return { estado: "ninguna" as const, coincidencias: [] };
+}
+
+function quitarFaltantesPropiedad(data: any) {
+  const quitar = new Set([
+    "seleccionar propiedad",
+    "propiedad_o_sector",
+    "propiedad o sector",
+    "resolver propiedad con base de datos",
+  ]);
+
+  data.faltan_bloqueantes = (data.faltan_bloqueantes || []).filter(
+    (dato: string) => !quitar.has((dato || "").toLowerCase().trim())
+  );
+  data.faltan_opcionales = (data.faltan_opcionales || []).filter(
+    (dato: string) => !quitar.has((dato || "").toLowerCase().trim())
+  );
+}
+
+function asignarPropiedad(data: any, propiedad: any) {
+  data.propiedad_id = propiedad.id;
+  data.propiedad_o_sector =
+    propiedad.nombre ||
+    propiedad.sector ||
+    propiedad.direccion ||
+    propiedad.ciudad ||
+    "";
+  quitarFaltantesPropiedad(data);
+}
+
 let clientesPosibles: any[] = [];
 
 data.clientes_posibles = [];
-data.cliente_id = null;
-data.propiedades_posibles = [];
-data.propiedad_id = null;
+data.cliente_id = data.cliente_id || borradorActual?.cliente_id || null;
+data.propiedades_posibles = borradorActual?.propiedades_posibles || [];
+data.propiedad_id = data.propiedad_id || borradorActual?.propiedad_id || null;
+
+if (data.propiedad_id && !data.propiedad_o_sector) {
+  data.propiedad_o_sector = borradorActual?.propiedad_o_sector || "";
+}
 
 data.faltan_bloqueantes = (data.faltan_bloqueantes || []).filter(
   (dato: string) => dato !== "propiedad_o_sector"
@@ -599,7 +758,23 @@ if (clientesPosibles.length === 1) {
     );
   }
 
+  let resultadoPropiedadMultiple: ReturnType<
+    typeof resolverPropiedadDesdeRespuesta
+  > | null = null;
+
   if ((propiedades || []).length > 1) {
+    resultadoPropiedadMultiple = resolverPropiedadDesdeRespuesta(
+      mensaje,
+      data.propiedad_o_sector || "",
+      propiedades || []
+    );
+
+    if (resultadoPropiedadMultiple.estado === "unica") {
+      asignarPropiedad(data, resultadoPropiedadMultiple.propiedad);
+    }
+  }
+
+  if ((propiedades || []).length > 1 && !data.propiedad_id) {
     data.faltan_bloqueantes = [
       ...(data.faltan_bloqueantes || []),
       "seleccionar propiedad",
@@ -608,6 +783,63 @@ if (clientesPosibles.length === 1) {
     data.listo_para_confirmar = false;
     data.pregunta_siguiente =
       "Encontré varias propiedades para este cliente. Indica cuál fue antes de guardar.";
+  }
+  if ((propiedades || []).length > 1 && !data.propiedad_id) {
+    if (resultadoPropiedadMultiple?.estado === "varias") {
+      data.pregunta_siguiente = preguntaSeleccionPropiedad(
+        resultadoPropiedadMultiple.coincidencias,
+        "Encontré varias propiedades parecidas. Indica cuál es: 1, 2, 3..."
+      );
+    } else if (
+      resultadoPropiedadMultiple?.estado === "ninguna" &&
+      borradorActual?.propiedades_posibles?.length
+    ) {
+      data.pregunta_siguiente =
+        "No encontré esa propiedad entre las propiedades del cliente. Escribe el número de la opción o el nombre exacto.";
+    } else {
+      data.pregunta_siguiente = preguntaSeleccionPropiedad(
+        propiedades || [],
+        "Encontré varias propiedades para este cliente:"
+      );
+    }
+  }
+}
+
+if (
+  !data.propiedad_id &&
+  Array.isArray(data.propiedades_posibles) &&
+  data.propiedades_posibles.length > 1 &&
+  borradorActual?.propiedades_posibles?.length
+) {
+  const resultadoPropiedadBorrador = resolverPropiedadDesdeRespuesta(
+    mensaje,
+    data.propiedad_o_sector || "",
+    data.propiedades_posibles
+  );
+
+  if (resultadoPropiedadBorrador.estado === "unica") {
+    asignarPropiedad(data, resultadoPropiedadBorrador.propiedad);
+  } else {
+    data.faltan_bloqueantes = [
+      ...(data.faltan_bloqueantes || []),
+      "seleccionar propiedad",
+    ];
+    data.listo_para_confirmar = false;
+
+    if (resultadoPropiedadBorrador.estado === "varias") {
+      data.pregunta_siguiente = preguntaSeleccionPropiedad(
+        resultadoPropiedadBorrador.coincidencias,
+        "Encontré varias propiedades parecidas. Indica cuál es: 1, 2, 3..."
+      );
+    } else if (resultadoPropiedadBorrador.estado === "ninguna") {
+      data.pregunta_siguiente =
+        "No encontré esa propiedad entre las propiedades del cliente. Escribe el número de la opción o el nombre exacto.";
+    } else {
+      data.pregunta_siguiente = preguntaSeleccionPropiedad(
+        data.propiedades_posibles,
+        "Encontré varias propiedades para este cliente:"
+      );
+    }
   }
 }
 
@@ -702,16 +934,8 @@ data.faltan_opcionales = (data.faltan_opcionales || []).map(
 );
 
 // Si ya se encontró propiedad real, no debe faltar propiedad
-if (data.propiedad_id || data.propiedad_o_sector) {
-  data.faltan_bloqueantes = data.faltan_bloqueantes.filter(
-    (dato: string) => dato !== "propiedad_o_sector"
-  );
-
-  data.faltan_opcionales = data.faltan_opcionales.filter(
-    (dato: string) =>
-      dato !== "propiedad_o_sector" &&
-      dato !== "resolver propiedad con base de datos"
-  );
+if (data.propiedad_id) {
+  quitarFaltantesPropiedad(data);
 }
 
 for (const producto of data.productos || []) {
