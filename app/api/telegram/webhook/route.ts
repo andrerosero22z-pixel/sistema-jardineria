@@ -6,6 +6,7 @@ import {
   crearBorradorTelegram,
   enviarMensajeTelegram,
   obtenerBorradorTelegramPendiente,
+  telegramAllowedChatIdsConfigurado,
 } from "@/lib/asistente/telegram";
 import { POST as consultarAsistente } from "@/app/api/ia/consultar/route";
 import { POST as interpretarTrabajo } from "@/app/api/ia/interpretar-trabajo/route";
@@ -20,6 +21,27 @@ type MensajeTelegram = {
   text: string;
   from?: Record<string, unknown>;
   test?: boolean;
+};
+
+type PropiedadConsulta = {
+  nombre_propiedad?: string | null;
+  cliente?: {
+    nombre?: string | null;
+  } | null;
+};
+
+type PagoPendienteTelegram = {
+  fecha_servicio?: string | null;
+  total_general?: number | string | null;
+  propiedad?: PropiedadConsulta | null;
+};
+
+type RecordatorioTelegram = {
+  fecha_recordatorio?: string | null;
+  mensaje?: string | null;
+  orden_servicio?: {
+    propiedad?: PropiedadConsulta | null;
+  } | null;
 };
 
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
@@ -52,6 +74,149 @@ function jsonRequest(data: unknown) {
 
 async function leerJson(response: Response) {
   return (await response.json()) as Record<string, unknown>;
+}
+
+function dinero(valor: number | string | null | undefined) {
+  return `$${Number(valor || 0).toFixed(2)}`;
+}
+
+function arreglo(valor: unknown) {
+  return Array.isArray(valor) ? valor : [];
+}
+
+function fechaActualEcuador() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Guayaquil",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function diferenciaDias(fechaISO: string) {
+  const hoy = new Date(`${fechaActualEcuador()}T00:00:00-05:00`);
+  const fecha = new Date(`${fechaISO}T00:00:00-05:00`);
+  const msPorDia = 24 * 60 * 60 * 1000;
+
+  return Math.round((fecha.getTime() - hoy.getTime()) / msPorDia);
+}
+
+function estadoDias(fechaISO: string | null | undefined) {
+  if (!fechaISO) return "sin fecha";
+
+  const dias = diferenciaDias(fechaISO);
+
+  if (dias > 1) return `faltan ${dias} días`;
+  if (dias === 1) return "falta 1 día";
+  if (dias === 0) return "vence hoy";
+
+  const vencido = Math.abs(dias);
+  return vencido === 1 ? "vencido ayer" : `vencido hace ${vencido} días`;
+}
+
+function notaRecordatorio(mensaje: string | null | undefined) {
+  const limpio = (mensaje || "").replace(/\s+/g, " ").trim();
+
+  if (!limpio) return "";
+
+  const normalizado = limpio
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    normalizado.includes("recordatorio de seguimiento del servicio realizado")
+  ) {
+    return "";
+  }
+
+  return limpio.length <= 50 ? limpio : `${limpio.slice(0, 50).trim()}...`;
+}
+
+function formatearPagosTelegram(consulta: Record<string, unknown>) {
+  const datos = arreglo(consulta.datos) as PagoPendienteTelegram[];
+
+  if (datos.length === 0) {
+    return texto(consulta.respuesta);
+  }
+
+  const total = datos.reduce(
+    (suma, orden) => suma + Number(orden.total_general || 0),
+    0
+  );
+  const visibles = datos.slice(0, 10);
+  const ocultos = datos.length - visibles.length;
+  const lineas = visibles.flatMap((orden, index) => {
+    const propiedad = orden.propiedad;
+    const cliente = propiedad?.cliente?.nombre || "Sin cliente";
+    const casa = propiedad?.nombre_propiedad || "Sin propiedad";
+
+    return [
+      `${index + 1}. ${cliente}`,
+      `   Casa: ${casa}`,
+      `   Fecha: ${orden.fecha_servicio || "Sin fecha"}`,
+      `   Valor: ${dinero(orden.total_general)}`,
+      "",
+    ];
+  });
+
+  if (ocultos > 0) {
+    lineas.push(`Hay ${ocultos} pendientes más que no se muestran.`);
+  }
+
+  return [
+    "💰 Pagos pendientes",
+    "",
+    `Tienes ${datos.length} trabajos pendientes.`,
+    `Total pendiente: ${dinero(total)}`,
+    "",
+    ...lineas,
+  ]
+    .join("\n")
+    .trim();
+}
+
+function formatearRecordatoriosTelegram(consulta: Record<string, unknown>) {
+  const datos = arreglo(consulta.datos) as RecordatorioTelegram[];
+
+  if (datos.length === 0) {
+    return texto(consulta.respuesta);
+  }
+
+  const visibles = datos.slice(0, 10);
+  const ocultos = datos.length - visibles.length;
+  const lineas = visibles.flatMap((recordatorio, index) => {
+    const propiedad = recordatorio.orden_servicio?.propiedad;
+    const cliente = propiedad?.cliente?.nombre || "Sin cliente";
+    const casa = propiedad?.nombre_propiedad || "Sin propiedad";
+    const nota = notaRecordatorio(recordatorio.mensaje);
+    const bloque = [
+      `${index + 1}. ${cliente}`,
+      `   Casa: ${casa}`,
+      `   Fecha: ${recordatorio.fecha_recordatorio || "Sin fecha"}`,
+      `   Estado: ${estadoDias(recordatorio.fecha_recordatorio)}`,
+    ];
+
+    if (nota) {
+      bloque.push(`   Nota: ${nota}`);
+    }
+
+    return [...bloque, ""];
+  });
+
+  if (ocultos > 0) {
+    lineas.push(`Hay ${ocultos} recordatorios más que no se muestran.`);
+  }
+
+  return [
+    "🔔 Recordatorios pendientes",
+    "",
+    `Tienes ${datos.length} recordatorios próximos o recientes.`,
+    "",
+    ...lineas,
+  ]
+    .join("\n")
+    .trim();
 }
 
 function extraerMensaje(payload: unknown): MensajeTelegram | null {
@@ -203,6 +368,16 @@ async function procesarMensaje(chatId: string, mensaje: string) {
     return respuesta;
   }
 
+  if (!telegramAllowedChatIdsConfigurado()) {
+    await enviarMensajeTelegram(
+      chatId,
+      [
+        `Tu chat_id es: ${chatId}.`,
+        "Ponlo en TELEGRAM_ALLOWED_CHAT_IDS para cerrar el acceso.",
+      ].join("\n")
+    );
+  }
+
   const normalizado = textoNormalizado(mensaje);
   const borrador = await obtenerBorradorTelegramPendiente(chatId);
 
@@ -244,7 +419,13 @@ async function procesarMensaje(chatId: string, mensaje: string) {
     consulta.tipo === "consultar_recordatorios" ||
     consulta.tipo === "desconocido"
   ) {
-    const respuesta = texto(consulta.respuesta);
+    const respuesta =
+      consulta.tipo === "consultar_pagos"
+        ? formatearPagosTelegram(consulta)
+        : consulta.tipo === "consultar_recordatorios"
+          ? formatearRecordatoriosTelegram(consulta)
+          : texto(consulta.respuesta);
+
     await enviarMensajeTelegram(chatId, respuesta);
     return respuesta;
   }

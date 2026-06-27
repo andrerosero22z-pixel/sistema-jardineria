@@ -47,6 +47,10 @@ export function chatTelegramPermitido(chatId: string | number) {
   return permitidos.includes(String(chatId));
 }
 
+export function telegramAllowedChatIdsConfigurado() {
+  return Boolean(process.env.TELEGRAM_ALLOWED_CHAT_IDS?.trim());
+}
+
 export async function obtenerBorradorTelegramPendiente(chatId: string) {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
