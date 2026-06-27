@@ -1,9 +1,11 @@
 import { after, NextResponse } from "next/server";
-import { lanzarErrorSupabase } from "@/lib/supabase/errors";
-import { createServiceRoleClient } from "@/lib/supabase/service";
 import {
+  actualizarBorradorTelegram,
+  type BorradorTelegram,
   chatTelegramPermitido,
+  crearBorradorTelegram,
   enviarMensajeTelegram,
+  obtenerBorradorTelegramPendiente,
 } from "@/lib/asistente/telegram";
 import { POST as consultarAsistente } from "@/app/api/ia/consultar/route";
 import { POST as interpretarTrabajo } from "@/app/api/ia/interpretar-trabajo/route";
@@ -18,12 +20,6 @@ type MensajeTelegram = {
   text: string;
   from?: Record<string, unknown>;
   test?: boolean;
-};
-
-type BorradorTelegram = {
-  id: string;
-  tipo: "registro_trabajo" | "actualizar_pago";
-  datos: unknown;
 };
 
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
@@ -132,69 +128,6 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
   ].join("\n");
 }
 
-async function obtenerBorradorPendiente(chatId: string) {
-  const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("telegram_borrador")
-    .select("id, tipo, datos")
-    .eq("chat_id", chatId)
-    .eq("estado", "pendiente")
-    .order("fecha_creacion", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    lanzarErrorSupabase(error);
-  }
-
-  return data as BorradorTelegram | null;
-}
-
-async function crearBorrador(
-  chatId: string,
-  tipo: BorradorTelegram["tipo"],
-  mensajeOriginal: string,
-  datos: unknown
-) {
-  const supabase = createServiceRoleClient();
-  const { error } = await supabase.from("telegram_borrador").insert({
-    chat_id: chatId,
-    tipo,
-    mensaje_original: mensajeOriginal,
-    datos,
-    estado: "pendiente",
-  });
-
-  if (error) {
-    lanzarErrorSupabase(error);
-  }
-}
-
-async function actualizarBorrador(
-  id: string,
-  estado: "pendiente" | "guardado" | "cancelado",
-  datos?: unknown
-) {
-  const supabase = createServiceRoleClient();
-  const update: Record<string, unknown> = {
-    estado,
-    fecha_actualizacion: new Date().toISOString(),
-  };
-
-  if (datos !== undefined) {
-    update.datos = datos;
-  }
-
-  const { error } = await supabase
-    .from("telegram_borrador")
-    .update(update)
-    .eq("id", id);
-
-  if (error) {
-    lanzarErrorSupabase(error);
-  }
-}
-
 async function procesarGuardarTrabajo(
   chatId: string,
   borrador: BorradorTelegram
@@ -206,7 +139,7 @@ async function procesarGuardarTrabajo(
     throw new Error(texto(data.detalle) || texto(data.error) || "No se pudo guardar");
   }
 
-  await actualizarBorrador(borrador.id, "guardado");
+  await actualizarBorradorTelegram(borrador.id, "guardado");
   const respuesta = "Trabajo guardado correctamente.";
   await enviarMensajeTelegram(chatId, respuesta);
   return respuesta;
@@ -230,9 +163,9 @@ async function procesarPagoPendiente(
   }
 
   if (data.accionPendiente) {
-    await actualizarBorrador(borrador.id, "pendiente", data.accionPendiente);
+    await actualizarBorradorTelegram(borrador.id, "pendiente", data.accionPendiente);
   } else {
-    await actualizarBorrador(borrador.id, "guardado");
+    await actualizarBorradorTelegram(borrador.id, "guardado");
   }
 
   const respuesta = texto(data.respuesta) || "Pago registrado correctamente.";
@@ -257,7 +190,7 @@ async function procesarCorreccionTrabajo(
     throw new Error(texto(data.detalle) || texto(data.error) || "No se pudo actualizar");
   }
 
-  await actualizarBorrador(borrador.id, "pendiente", data);
+  await actualizarBorradorTelegram(borrador.id, "pendiente", data);
   const respuesta = resumenTrabajo(data);
   await enviarMensajeTelegram(chatId, respuesta);
   return respuesta;
@@ -271,11 +204,11 @@ async function procesarMensaje(chatId: string, mensaje: string) {
   }
 
   const normalizado = textoNormalizado(mensaje);
-  const borrador = await obtenerBorradorPendiente(chatId);
+  const borrador = await obtenerBorradorTelegramPendiente(chatId);
 
   if (normalizado === "cancelar") {
     if (borrador) {
-      await actualizarBorrador(borrador.id, "cancelado");
+      await actualizarBorradorTelegram(borrador.id, "cancelado");
     }
 
     const respuesta = "Listo, cancele la accion pendiente.";
@@ -325,7 +258,12 @@ async function procesarMensaje(chatId: string, mensaje: string) {
     }
 
     if (pago.accionPendiente) {
-      await crearBorrador(chatId, "actualizar_pago", mensaje, pago.accionPendiente);
+      await crearBorradorTelegram(
+        chatId,
+        "actualizar_pago",
+        mensaje,
+        pago.accionPendiente
+      );
     }
 
     const respuesta = texto(pago.respuesta);
@@ -342,7 +280,7 @@ async function procesarMensaje(chatId: string, mensaje: string) {
     );
   }
 
-  await crearBorrador(chatId, "registro_trabajo", mensaje, borradorTrabajo);
+  await crearBorradorTelegram(chatId, "registro_trabajo", mensaje, borradorTrabajo);
   const respuesta = resumenTrabajo(borradorTrabajo);
   await enviarMensajeTelegram(chatId, respuesta);
   return respuesta;
