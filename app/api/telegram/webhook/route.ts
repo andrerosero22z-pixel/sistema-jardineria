@@ -94,6 +94,11 @@ function dinero(valor: number | string | null | undefined) {
   return `$${Number(valor || 0).toFixed(2)}`;
 }
 
+function numero(valor: unknown) {
+  const n = Number(valor || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function arreglo(valor: unknown) {
   return Array.isArray(valor) ? valor : [];
 }
@@ -190,6 +195,62 @@ function avisoFaltantesTrabajo(borrador: Record<string, unknown>) {
     ...(clientes ? ["", clientes] : []),
     ...(preguntaSiguiente ? ["", preguntaSiguiente] : []),
   ].join("\n");
+}
+
+function nombreProducto(producto: Record<string, unknown>) {
+  return (
+    texto(producto.producto_original) ||
+    texto(producto.nombre) ||
+    "Producto"
+  );
+}
+
+function cantidadProducto(producto: Record<string, unknown>) {
+  const cantidad = numero(producto.cantidad);
+  const tipo = texto(producto.tipo);
+  const tipoInterno = ["venta", "compra", "uso", "usado", "no_claro"].includes(
+    tipo.toLowerCase()
+  );
+
+  if (cantidad <= 0) return "";
+  if (tipo && !tipoInterno) return `${cantidad} ${tipo}`;
+
+  return String(cantidad);
+}
+
+function lineasProducto(producto: Record<string, unknown>) {
+  const nombre = nombreProducto(producto);
+  const cantidad = cantidadProducto(producto);
+  const subtotalCosto = numero(producto.subtotal_costo);
+  const subtotalVenta = numero(producto.subtotal_venta);
+  const ganancia = numero(producto.ganancia_producto);
+  const tieneCostoYVenta = subtotalCosto > 0 && subtotalVenta > 0;
+
+  if (tieneCostoYVenta) {
+    return [
+      `- ${nombre}${cantidad ? `: ${cantidad}` : ""}`,
+      `  Costo: ${dinero(subtotalCosto)}`,
+      `  Venta: ${dinero(subtotalVenta)}`,
+      `  Ganancia: ${dinero(ganancia || subtotalVenta - subtotalCosto)}`,
+    ];
+  }
+
+  return [
+    `- ${nombre}${cantidad ? `: ${cantidad}` : ""} - ${dinero(
+      subtotalVenta || numero(producto.total)
+    )}`,
+  ];
+}
+
+function lineasProductos(productos: unknown[]) {
+  return productos
+    .slice(0, 8)
+    .flatMap((producto) => {
+      if (!esObjeto(producto)) return [];
+
+      return lineasProducto(producto);
+    })
+    .filter(Boolean);
 }
 
 function fechaActualEcuador() {
@@ -366,6 +427,9 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
   const servicios = Array.isArray(borrador.servicios)
     ? borrador.servicios
     : [];
+  const productos = Array.isArray(borrador.productos)
+    ? borrador.productos
+    : [];
   const lineasServicios = servicios
     .slice(0, 8)
     .map((servicio) => {
@@ -376,6 +440,17 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
       ).toFixed(2)}`;
     })
     .filter(Boolean);
+  const lineasProductosResumen = lineasProductos(productos);
+  const totalServicios = servicios.reduce((suma, servicio) => {
+    if (!esObjeto(servicio)) return suma;
+
+    return suma + numero(servicio.total);
+  }, 0);
+  const totalProductos = productos.reduce((suma, producto) => {
+    if (!esObjeto(producto)) return suma;
+
+    return suma + (numero(producto.subtotal_venta) || numero(producto.total));
+  }, 0);
 
   const recordatorio =
     texto(borrador.recordatorio) ||
@@ -394,9 +469,16 @@ function resumenTrabajo(borrador: Record<string, unknown>) {
     "Servicios:",
     ...(lineasServicios.length ? lineasServicios : ["- No detectados"]),
     "",
-    `Total: $${Number(borrador.total || 0).toFixed(2)}`,
-    `Pagado: $${Number(borrador.pagado || 0).toFixed(2)}`,
-    `Pendiente: $${Number(borrador.pendiente || 0).toFixed(2)}`,
+    ...(lineasProductosResumen.length
+      ? ["Productos:", ...lineasProductosResumen, ""]
+      : []),
+    `Total servicios: ${dinero(totalServicios)}`,
+    ...(lineasProductosResumen.length
+      ? [`Total productos: ${dinero(totalProductos)}`]
+      : []),
+    `Total general: ${dinero(borrador.total as number | string | null | undefined)}`,
+    `Pagado: ${dinero(borrador.pagado as number | string | null | undefined)}`,
+    `Pendiente: ${dinero(borrador.pendiente as number | string | null | undefined)}`,
     `Recordatorio: ${recordatorio}`,
     "",
     ...(puedeGuardar
